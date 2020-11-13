@@ -9,7 +9,7 @@
     "homepage": "https://theinad.com",
     "license": "MIT",
     "name": "theinad/mediathek",
-    "version": "0.5.0",
+    "version": "0.6.2",
     "autoload": {
         "psr-4": {
             "TheiNaD\\DSMediatheken\\": "src/"
@@ -23,7 +23,8 @@
     "require": {
         "php": "^5.6 || ^7.0",
         "ext-curl": "*",
-        "ext-json": "*"
+        "ext-json": "*",
+        "ext-mbstring": "*"
     },
     "require-dev": {
         "php": "^7.1",

@@ -34,6 +34,7 @@ Ein Synology-NAS mit einer aktuellen Version des `DiskStation Managers` (mindest
 - 3sat (`3sat.de`)
 - ARD (`ardmediathek.de`, `mediathek.daserste.de`)
 - Arte (`arte.tv`)
+- BR (`br.de`)
 - KiKa (`kika.de`)
 - MDR (`mdr.de`)
 - NDR (`ndr.de`)
@@ -92,7 +93,7 @@ Du möchtest das Projekt unterstützen und schätzt die Arbeit dahinter? Schreib
 ```
 The MIT License (MIT)
 
-Copyright (c) 2017-2019 Daniel Gehn
+Copyright (c) 2017-2020 Daniel Gehn
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

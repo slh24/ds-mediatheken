@@ -6,18 +6,23 @@ use TheiNaD\DSMediatheken\Utils\Mediathek;
 use TheiNaD\DSMediatheken\Utils\Result;
 
 /**
- * @author Daniel Gehn <me@theinad.com>
- * @copyright 2017-2019 Daniel Gehn
- * @license http://opensource.org/licenses/MIT Licensed under MIT License
+ * @author    Daniel Gehn <me@theinad.com>
+ * @copyright 2017-2020 Daniel Gehn
+ * @license   http://opensource.org/licenses/MIT Licensed under MIT License
  */
 class ARD extends Mediathek
 {
-
-    private static $API_BASE_URL = 'http://www.ardmediathek.de/play/media/';
-    private static $VALID_QUALITIES = [0, 1, 2, 3, 4];
-
+    protected static $API_BASE_URL = 'http://www.ardmediathek.de/play/media/';
+    protected static $VALID_QUALITIES = [0, 1, 2, 3, 4];
     protected static $SUPPORT_MATCHER = ['ardmediathek.de', 'mediathek.daserste.de'];
 
+    /**
+     * @param string $url
+     * @param string $username
+     * @param string $password
+     *
+     * @return Result|null
+     */
     public function getDownloadInfo($url, $username = '', $password = '')
     {
         $result = new Result();
@@ -25,6 +30,7 @@ class ARD extends Mediathek
         $pageContent = $this->getPageContent($url);
         if ($pageContent === null) {
             $this->getLogger()->log(sprintf('could not retrieve page content from %s', $url));
+
             return null;
         }
 
@@ -35,12 +41,14 @@ class ARD extends Mediathek
 
         if ($documentId === null) {
             $this->getLogger()->log('no documentId found in ' . $url);
+
             return null;
         }
 
         $apiData = $this->getApiData($documentId);
         if ($apiData === null) {
             $this->getLogger()->log('could not retrieve apiData');
+
             return null;
         }
 
@@ -49,6 +57,8 @@ class ARD extends Mediathek
                 if ($this->mediaStreamHasNeededProperties($mediaStream)
                     && $this->mediaStreamHasValidQuality($mediaStream)) {
                     if ($mediaStream->_quality > $result->getQualityRating()) {
+                        $this->getLogger()->log(sprintf('Found stream with quality "%s"', $mediaStream->_quality));
+
                         $stream = $this->getHighestQualityStream($mediaStream->_stream);
                         if ($stream !== null) {
                             $result = new Result();
@@ -64,47 +74,90 @@ class ARD extends Mediathek
             return null;
         }
 
+        $this->getLogger()->log(sprintf(
+            'Url "%s" won with quality of "%s"',
+            $result->getUri(),
+            $result->getQualityRating()
+        ));
+
         $result = $this->addTitle($pageContent, $result);
         $result->setUri($this->getTools()->addProtocolFromUrlIfMissing($result->getUri(), $url));
 
         return $result;
     }
 
-    private function getPageContent($url)
+    /**
+     * @param string $url
+     *
+     * @return string|null
+     */
+    protected function getPageContent($url)
     {
         return $this->getTools()->curlRequest($url);
     }
 
-    private function getDocumentIdFromUrl($url)
+    /**
+     * @param string $url
+     *
+     * @return string|null
+     */
+    protected function getDocumentIdFromUrl($url)
     {
         return $this->getTools()->pregMatchDefault('#documentId=([0-9]+)#i', $url, null);
     }
 
-    private function getDocumentId($pageContent)
+    /**
+     * @param string $pageContent
+     *
+     * @return string|null
+     */
+    protected function getDocumentId($pageContent)
     {
         return $this->getTools()->pregMatchDefault('#"contentId":([0-9]+)#i', $pageContent, null);
     }
 
-    private function getApiData($documentId)
+    /**
+     * @param string $documentId
+     *
+     * @return object|null
+     */
+    protected function getApiData($documentId)
     {
-        return json_decode($this->getTools()->curlRequest(self::$API_BASE_URL . $documentId));
+        return json_decode($this->getTools()->curlRequest(self::$API_BASE_URL . $documentId), false);
     }
 
-    private function mediaStreamHasNeededProperties($mediaStream)
+    /**
+     * @param object $mediaStream
+     *
+     * @return bool
+     */
+    protected function mediaStreamHasNeededProperties($mediaStream)
     {
         return property_exists($mediaStream, '_stream') && property_exists($mediaStream, '_quality');
     }
 
-    private function mediaStreamHasValidQuality($mediaStream)
+    /**
+     * @param object $mediaStream
+     *
+     * @return bool
+     */
+    protected function mediaStreamHasValidQuality($mediaStream)
     {
         return in_array($mediaStream->_quality, self::$VALID_QUALITIES, true);
     }
 
-    private function getHighestQualityStream($streams)
+    /**
+     * @param mixed $streams
+     *
+     * @return mixed
+     */
+    protected function getHighestQualityStream($streams)
     {
         if (!is_array($streams)) {
             return $streams;
         }
+
+        $this->getLogger()->log('Multiple streams found for single quality');
 
         $hqStream = [
             'quality' => 0,
@@ -113,28 +166,48 @@ class ARD extends Mediathek
 
         foreach ($streams as $stream) {
             $quality = $this->getQualityFromStreamUrl($stream);
+
+            $this->getLogger()->log(sprintf('Found quality "%s" for url "%s"', $quality, $stream));
+
             if ($quality > $hqStream['quality']) {
                 $hqStream['quality'] = $quality;
                 $hqStream['url'] = $stream;
             }
         }
 
+        $this->getLogger()->log(sprintf(
+            'Best url is "%s" with quality of "%s"',
+            $hqStream['url'],
+            $hqStream['quality']
+        ));
+
         return $hqStream['url'];
     }
 
-    private function getQualityFromStreamUrl($stream)
+    /**
+     * @param string $stream
+     *
+     * @return string|null
+     */
+    protected function getQualityFromStreamUrl($stream)
     {
-        return $this->getTools()->pregMatchDefault('#\/(\d+)-\d.mp4#i', $stream, 0);
+        return $this->getTools()->pregMatchDefault('#\/(\d+)-[\d_]+\.mp4#i', $stream, 0);
     }
 
-    private function addTitle($pageContent, Result $result)
+    /**
+     * @param string $pageContent
+     * @param Result $result
+     *
+     * @return Result
+     */
+    protected function addTitle($pageContent, Result $result)
     {
         $videoMeta = $this->getVideoMeta($pageContent);
         if ($videoMeta !== null) {
             return $this->addTitleFromVideoMeta($result, $videoMeta);
         }
 
-        $titleTag = $this->getTools()->pregMatchDefault('#<title>(.*?)</title>#i', $pageContent, null);
+        $titleTag = $this->getTools()->pregMatchDefault('#<title>(.*?)<\/title>#i', $pageContent, null);
         if ($titleTag === null) {
             return $result;
         }
@@ -145,6 +218,7 @@ class ARD extends Mediathek
 
         if ($title === null) {
             $result->setTitle($episode);
+
             return $result;
         }
 
@@ -156,7 +230,13 @@ class ARD extends Mediathek
         return $result;
     }
 
-    private function addTitleFromVideoMeta(Result $result, $videoMeta)
+    /**
+     * @param Result $result
+     * @param string $videoMeta
+     *
+     * @return Result
+     */
+    protected function addTitleFromVideoMeta(Result $result, $videoMeta)
     {
         $show = $this->getShowFromMeta($videoMeta);
         $clipTitle = $this->getClipTitleFromMeta($videoMeta);
@@ -167,30 +247,50 @@ class ARD extends Mediathek
         return $result;
     }
 
-    private function getVideoMeta($pageContent)
+    /**
+     * @param string $pageContent
+     *
+     * @return string|null
+     */
+    protected function getVideoMeta($pageContent)
     {
-        \preg_match_all('#<script>(.*?)<\/script>#si', $pageContent, $scriptTags);
+        $scriptTags = $this->getTools()->pregMatchAllDefault(
+            '#<script type="text\/javascript">(.*?)<\/script>#si',
+            $pageContent
+        );
+
         if (count($scriptTags) === 0) {
             return null;
         }
 
-        foreach ($scriptTags[1] as $scriptTag) {
-            if (\preg_match('#tracking\.atiCustomVars":{(.*?)}#si', $scriptTag, $match) !== 1) {
+        foreach ($scriptTags as $scriptTag) {
+            $atiCustomVars = $this->getTools()->pregMatchDefault('#tracking\.atiCustomVars":{(.*?)}#si', $scriptTag);
+            if ($atiCustomVars === null) {
                 continue;
             }
 
-            return $match[1];
+            return $atiCustomVars;
         }
 
         return null;
     }
 
-    private function getShowFromMeta($videoMeta)
+    /**
+     * @param string $videoMeta
+     *
+     * @return string|null
+     */
+    protected function getShowFromMeta($videoMeta)
     {
         return $this->getTools()->pregMatchDefault('#"show":"(.*?)"#i', $videoMeta, null);
     }
 
-    private function getClipTitleFromMeta($videoMeta)
+    /**
+     * @param string $videoMeta
+     *
+     * @return string|null
+     */
+    protected function getClipTitleFromMeta($videoMeta)
     {
         return $this->getTools()->pregMatchDefault('#"clipTitle":"(.*?)"#i', $videoMeta, null);
     }
